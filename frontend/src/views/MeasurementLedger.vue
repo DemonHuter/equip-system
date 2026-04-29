@@ -64,14 +64,20 @@
         <el-table-column prop="deviceNo" label="设备编号" align="center" />
         <el-table-column prop="inspectionUnit" label="检测检定单位" min-width="120" show-overflow-tooltip align="center" />
         <el-table-column prop="inspectionDate" label="应检日期" min-width="100" align="center" />
-        <!-- <el-table-column prop="actualImplementation" label="本次施实" min-width="100" align="center" /> -->
+
         <el-table-column prop="testResult" label="检测结果" min-width="100" align="center" />
         <el-table-column prop="certNo" label="证书编号" min-width="120" show-overflow-tooltip align="center" />
         <el-table-column prop="cycle" label="周期" min-width="50" align="center" />
         <el-table-column prop="nextInspectionDate" label="下次检定日期" min-width="100" align="center" />
         <el-table-column prop="remark" label="备注" min-width="100" show-overflow-tooltip align="center" />
         <el-table-column prop="department" label="科室" min-width="100" align="center" />
-        <el-table-column prop="judgmentStandard" label="判断标准" min-width="120" show-overflow-tooltip align="center" />
+        <el-table-column label="判断标准" min-width="120" align="center">
+          <template #default="{ row }">
+            <el-tooltip :content="getStandardDetail(row.judgmentStandard)" placement="top">
+              <span>{{ getStandardName(row.judgmentStandard) }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
             <el-button type="text" size="small" @click="handleEdit(row)">编辑</el-button>
@@ -136,11 +142,6 @@
               <el-input v-model="form.inspectionDate" placeholder="请输入应检日期或'新设备'" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="本次施实" prop="actualImplementation">
-              <el-input v-model="form.actualImplementation" placeholder="请输入本次施实" />
-            </el-form-item>
-          </el-col>
         </el-row>
         <el-row :gutter="20">
           <el-col :span="12">
@@ -174,7 +175,14 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="判断标准" prop="judgmentStandard">
-              <el-input v-model="form.judgmentStandard" placeholder="请输入判断标准" />
+              <el-select v-model="form.judgmentStandard" placeholder="请选择判断标准">
+                <el-option
+                  v-for="item in standardOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -254,16 +262,19 @@ watch(() => searchForm.department, (newVal) => {
 // 科室选项
 const departmentOptions = ref([])
 
+// 判断标准选项
+const standardOptions = ref([])
+
+// 判断标准映射（用于根据ID获取名称和标准内容）
+const standardMap = ref({})
+
 // 加载科室选项
 const loadDepartmentOptions = async () => {
   try {
-    // 调用后端API获取科室列表
     console.log('开始加载科室选项...')
     const response = await request.get('/ledger/departments')
     console.log('科室选项响应:', response)
-    // 后端返回的是Response对象，科室列表在data属性中
     if (response && response.data) {
-      // 将后端返回的科室列表转换为下拉框选项格式
       departmentOptions.value = response.data.map(dept => ({
         label: dept,
         value: dept
@@ -280,9 +291,55 @@ const loadDepartmentOptions = async () => {
   }
 }
 
-// 页面加载时加载科室选项
+// 加载判断标准选项
+const loadStandardOptions = async () => {
+  try {
+    console.log('开始加载判断标准选项...')
+    const response = await request.get('/standard/all')
+    console.log('判断标准响应:', response)
+    if (response && response.data) {
+      standardOptions.value = response.data.map(standard => ({
+        label: standard.name,
+        value: standard.id
+      }))
+      // 构建映射表
+      standardMap.value = {}
+      response.data.forEach(standard => {
+        standardMap.value[standard.id] = {
+          name: standard.name,
+          standard: standard.standard
+        }
+      })
+      console.log('判断标准加载成功:', standardOptions.value)
+    } else {
+      console.error('判断标准响应格式错误:', response)
+      ElMessage.error('判断标准响应格式错误')
+    }
+  } catch (error) {
+    console.error('加载判断标准失败:', error)
+    console.error('错误详情:', error.response)
+    ElMessage.error('加载判断标准失败')
+  }
+}
+
+// 根据ID获取标准名称
+const getStandardName = (standardId) => {
+  if (!standardId) return ''
+  const standard = standardMap.value[standardId]
+  return standard ? standard.name : '未配置'
+}
+
+// 根据ID获取标准详情（用于悬停提示）
+const getStandardDetail = (standardId) => {
+  if (!standardId) return '未配置判断标准'
+  const standard = standardMap.value[standardId]
+  return standard ? standard.standard : '标准不存在'
+}
+
+// 页面加载时加载选项
 onMounted(() => {
   loadDepartmentOptions()
+  loadStandardOptions()
   loadData()
 })
 
@@ -299,7 +356,6 @@ const form = reactive({
   deviceNo: '',
   inspectionUnit: '',
   inspectionDate: '',
-  actualImplementation: '',
   testResult: '',
   certNo: '',
   cycle: '',
@@ -433,8 +489,43 @@ const handleBatchDelete = () => {
   })
 }
 
-const handleExport = () => {
-  ElMessage.info('导出功能开发中')
+const handleExport = async () => {
+  try {
+    console.log('开始导出...')
+    const response = await request.post('/ledger/export', {
+      current: 1,
+      size: 99999,
+      deviceName: searchForm.deviceName,
+      deviceNo: searchForm.deviceNo,
+      department: searchForm.department,
+      nextInspectionDate: searchForm.nextInspectionDate
+    }, {
+      responseType: 'blob'
+    })
+    
+    console.log('导出响应:', response)
+    console.log('响应数据类型:', typeof response)
+    
+    // 创建下载链接
+    const blob = new Blob([response], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '计量台账.xlsx'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+    if (error.response) {
+      console.error('响应状态:', error.response.status)
+      console.error('响应数据:', error.response.data)
+    }
+    ElMessage.error('导出失败')
+  }
 }
 
 const handleImport = () => {

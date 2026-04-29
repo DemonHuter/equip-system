@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
+
 import java.util.List;
 
 @RestController
@@ -72,6 +74,39 @@ public class MeasurementLedgerController {
     public Response<List<String>> getDepartments() {
         List<String> departments = ledgerService.getDepartments();
         return Response.success(departments);
+    }
+
+    @PostMapping("/export")
+    public void exportExcel(@RequestBody PageQuery query, HttpServletResponse response) {
+        // 设置分页为全部数据
+        query.setCurrent(1);
+        query.setSize(Integer.MAX_VALUE);
+        
+        IPage<MeasurementLedger> page = ledgerService.pageQuery(
+                query.getCurrent(),
+                query.getSize(),
+                query.getDeviceName(),
+                query.getDeviceNo(),
+                query.getDepartment(),
+                query.getNextInspectionDate()
+        );
+        
+        System.out.println("导出数据数量: " + page.getRecords().size());
+        
+        byte[] excelBytes = ledgerService.exportExcel(page.getRecords());
+        
+        try {
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setHeader("Content-Disposition", "attachment; filename=\"measurement_ledger.xlsx\"");
+            response.setContentLength(excelBytes.length);
+            response.getOutputStream().write(excelBytes);
+            response.getOutputStream().flush();
+            System.out.println("导出Excel成功");
+        } catch (Exception e) {
+            System.err.println("导出Excel失败: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("导出Excel失败: " + e.getMessage(), e);
+        }
     }
 
 }

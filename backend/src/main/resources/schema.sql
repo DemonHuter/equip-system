@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS measurement_ledger (
     device_no TEXT NOT NULL,
     inspection_unit TEXT,
     inspection_date TEXT,
-    actual_implementation TEXT,
     test_result TEXT,
     cert_no TEXT,
     cycle TEXT,
@@ -13,6 +12,14 @@ CREATE TABLE IF NOT EXISTS measurement_ledger (
     remark TEXT,
     department TEXT,
     judgment_standard TEXT,
+    create_time TEXT DEFAULT (datetime('now','localtime')),
+    update_time TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS device_standard (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    standard TEXT NOT NULL,
     create_time TEXT DEFAULT (datetime('now','localtime')),
     update_time TEXT DEFAULT (datetime('now','localtime'))
 );

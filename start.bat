@@ -2,7 +2,7 @@
 
 REM Start backend service
 echo Starting backend service...
-start "Backend Server" cmd /c "cd backend && mvn spring-boot:run"
+start "Backend Server" cmd /c "cd backend && mvn clean package && mvn spring-boot:run"
 
 REM Wait for backend service to start
 echo Waiting for backend service to start...

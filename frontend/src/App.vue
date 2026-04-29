@@ -20,6 +20,9 @@
           <el-menu-item index="/equipment-ledger">
             <span>设备台账</span>
           </el-menu-item>
+          <el-menu-item index="/device-standard">
+            <span>仪器设备标准</span>
+          </el-menu-item>
         </el-menu>
       </el-aside>
       <el-container>

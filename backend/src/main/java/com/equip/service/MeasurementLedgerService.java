@@ -24,4 +24,6 @@ public interface MeasurementLedgerService {
 
     List<String> getDepartments();
 
+    byte[] exportExcel(List<MeasurementLedger> ledgers);
+
 }

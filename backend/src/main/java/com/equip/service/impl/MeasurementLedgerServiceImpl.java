@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -25,7 +26,7 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
     private MeasurementLedgerMapper ledgerMapper;
 
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    private FormulaEvaluator evaluator;
+
 
     /**
      * 判断一个数字是否是Excel日期格式
@@ -89,26 +90,14 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
 
     @Override
     public void importExcel(MultipartFile file) {
-        System.out.println("开始导入Excel文件: " + file.getOriginalFilename());
-        System.out.println("文件大小: " + file.getSize() + " bytes");
         try (InputStream inputStream = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(inputStream)) {
             // 初始化FormulaEvaluator
-            evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
             
-            System.out.println("Excel文件读取成功，工作表数量: " + workbook.getNumberOfSheets());
             
-            // 遍历所有工作表
-            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
-                Sheet sheet = workbook.getSheetAt(sheetIndex);
-                System.out.println("工作表 " + sheetIndex + " 名称: " + sheet.getSheetName());
-                System.out.println("工作表 " + sheetIndex + " 总行数: " + (sheet.getLastRowNum() + 1));
-                System.out.println("工作表 " + sheetIndex + " 第一行索引: " + sheet.getFirstRowNum());
-                System.out.println("工作表 " + sheetIndex + " 最后一行索引: " + sheet.getLastRowNum());
-            }
-            
-            // 使用第二个工作表（Sheet2），因为它包含实际数据
-            Sheet sheet = workbook.getSheetAt(1);
+            // 使用第一个工作表（Sheet1），因为它包含实际数据
+            Sheet sheet = workbook.getSheetAt(0);
             List<MeasurementLedger> ledgers = new ArrayList<>();
             String now = sdf.format(new Date());
 
@@ -124,19 +113,19 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
                 System.out.println("读取第 " + (i+1) + " 行数据");
                 
                 MeasurementLedger ledger = new MeasurementLedger();
-                ledger.setDeviceName(getCellValue(row.getCell(0), "deviceName"));
-                ledger.setSpecModel(getCellValue(row.getCell(1), "specModel"));
-                ledger.setDeviceNo(getCellValue(row.getCell(2), "deviceNo"));
-                ledger.setInspectionUnit(getCellValue(row.getCell(3), "inspectionUnit"));
-                ledger.setInspectionDate(getCellValue(row.getCell(4), "inspectionDate"));
-                ledger.setActualImplementation(getCellValue(row.getCell(5), "actualImplementation"));
-                ledger.setTestResult(getCellValue(row.getCell(6), "testResult"));
-                ledger.setCertNo(getCellValue(row.getCell(7), "certNo"));
-                ledger.setCycle(getCellValue(row.getCell(8), "cycle"));
-                ledger.setNextInspectionDate(getCellValue(row.getCell(9), "nextInspectionDate"));
-                ledger.setRemark(getCellValue(row.getCell(10), "remark"));
-                ledger.setDepartment(getCellValue(row.getCell(11), "department"));
-                ledger.setJudgmentStandard(getCellValue(row.getCell(12), "judgmentStandard"));
+                ledger.setDeviceName(getCellValue(evaluator, row.getCell(0), "deviceName"));
+                ledger.setSpecModel(getCellValue(evaluator, row.getCell(1), "specModel"));
+                ledger.setDeviceNo(getCellValue(evaluator, row.getCell(2), "deviceNo"));
+                ledger.setInspectionUnit(getCellValue(evaluator, row.getCell(3), "inspectionUnit"));
+                ledger.setInspectionDate(getCellValue(evaluator, row.getCell(4), "inspectionDate"));
+                // 索引5是actual_implementation字段，已从系统中移除，跳过
+                ledger.setTestResult(getCellValue(evaluator, row.getCell(6), "testResult"));
+                ledger.setCertNo(getCellValue(evaluator, row.getCell(7), "certNo"));
+                ledger.setCycle(getCellValue(evaluator, row.getCell(8), "cycle"));
+                ledger.setNextInspectionDate(getCellValue(evaluator, row.getCell(9), "nextInspectionDate"));
+                ledger.setRemark(getCellValue(evaluator, row.getCell(10), "remark"));
+                ledger.setDepartment(getCellValue(evaluator, row.getCell(11), "department"));
+                ledger.setJudgmentStandard(getCellValue(evaluator, row.getCell(12), "judgmentStandard"));
                 ledger.setCreateTime(now);
                 ledger.setUpdateTime(now);
                 ledgers.add(ledger);
@@ -163,6 +152,52 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
     }
 
     @Override
+    public byte[] exportExcel(List<MeasurementLedger> ledgers) {
+        try {
+            // 读取模板文件
+            ClassLoader classLoader = getClass().getClassLoader();
+            InputStream templateStream = classLoader.getResourceAsStream("template/measurement_ledger_template.xlsx");
+            if (templateStream == null) {
+                throw new RuntimeException("模板文件不存在");
+            }
+            
+            try (Workbook workbook = new XSSFWorkbook(templateStream)) {
+                Sheet sheet = workbook.getSheetAt(0);
+                
+                // 从第四行开始写入数据（索引为3）
+                int dataRowIndex = 3;
+                
+                // 遍历数据并写入Excel
+                for (MeasurementLedger ledger : ledgers) {
+                    Row row = sheet.createRow(dataRowIndex++);
+                    
+                    // 根据模板的列顺序写入数据
+                    int colIndex = 0;
+                    row.createCell(colIndex++).setCellValue(ledger.getDeviceName());
+                    row.createCell(colIndex++).setCellValue(ledger.getSpecModel());
+                    row.createCell(colIndex++).setCellValue(ledger.getDeviceNo());
+                    row.createCell(colIndex++).setCellValue(ledger.getInspectionUnit());
+                    row.createCell(colIndex++).setCellValue(ledger.getInspectionDate());
+                    row.createCell(colIndex++).setCellValue(ledger.getTestResult());
+                    row.createCell(colIndex++).setCellValue(ledger.getCertNo());
+                    row.createCell(colIndex++).setCellValue(ledger.getCycle());
+                    row.createCell(colIndex++).setCellValue(ledger.getNextInspectionDate());
+                    row.createCell(colIndex++).setCellValue(ledger.getRemark());
+                    row.createCell(colIndex++).setCellValue(ledger.getDepartment());
+                    row.createCell(colIndex++).setCellValue(ledger.getJudgmentStandard());
+                }
+                
+                // 将Workbook写入字节数组
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                workbook.write(outputStream);
+                return outputStream.toByteArray();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("导出Excel失败: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public List<String> getDepartments() {
         // 从数据库中获取所有科室，去重
         QueryWrapper<MeasurementLedger> wrapper = new QueryWrapper<>();
@@ -177,7 +212,7 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
         return departments;
     }
 
-    private String getCellValue(Cell cell, String fieldName) {
+    private String getCellValue(FormulaEvaluator evaluator, Cell cell, String fieldName) {
         if (cell == null) return "";
         CellType cellType = cell.getCellType();
         switch (cellType) {

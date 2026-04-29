@@ -15,6 +15,11 @@ const routes = [
     path: '/equipment-ledger',
     name: 'EquipmentLedger',
     component: () => import('../views/EquipmentLedger.vue')
+  },
+  {
+    path: '/device-standard',
+    name: 'DeviceStandard',
+    component: () => import('../views/DeviceStandard.vue')
   }
 ]
 

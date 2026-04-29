@@ -7,6 +7,11 @@ const request = axios.create({
 
 request.interceptors.response.use(
   response => {
+    // 如果响应类型是blob，直接返回response对象而不是解析为JSON
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
+    
     const res = response.data
     if (res.code !== 200) {
       console.error(res.msg)

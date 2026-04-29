@@ -26,8 +26,6 @@ public class MeasurementLedger implements Serializable {
 
     private String inspectionDate;
 
-    private String actualImplementation;
-
     private String testResult;
 
     private String certNo;
