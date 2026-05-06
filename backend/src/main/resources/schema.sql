@@ -23,3 +23,21 @@ CREATE TABLE IF NOT EXISTS device_standard (
     create_time TEXT DEFAULT (datetime('now','localtime')),
     update_time TEXT DEFAULT (datetime('now','localtime'))
 );
+
+CREATE TABLE IF NOT EXISTS equipment_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipment_name TEXT NOT NULL,
+    spec_model TEXT,
+    serial_number TEXT,
+    device_no TEXT NOT NULL,
+    manufacturer TEXT,
+    enable_date TEXT,
+    expected_scrap_date TEXT,
+    installation_location TEXT,
+    keeper TEXT,
+    maintenance_status TEXT,
+    use_status TEXT,
+    department TEXT,
+    create_time TEXT DEFAULT (datetime('now','localtime')),
+    update_time TEXT DEFAULT (datetime('now','localtime'))
+);

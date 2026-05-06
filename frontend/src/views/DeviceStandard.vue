@@ -1,6 +1,11 @@
 <template>
   <div class="device-standard">
     <el-card class="box-card">
+      <template #header>
+        <div class="card-header">
+          <span>仪器设备标准管理</span>
+        </div>
+      </template>
       <div class="search-box">
         <el-form :model="searchForm" class="search-form" inline>
           <el-form-item label="标准内容">
@@ -256,7 +261,6 @@ onMounted(() => {
 <style scoped>
 .device-standard {
   width: 100%;
-  padding: 20px;
 }
 
 .box-card {

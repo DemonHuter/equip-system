@@ -4,6 +4,10 @@ spring:
     url: jdbc:sqlite:./data/measurement_ledger.db
     username:
     password:
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
 
 mybatis-plus:
   configuration:

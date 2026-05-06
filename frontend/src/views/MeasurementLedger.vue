@@ -38,12 +38,12 @@
           <el-form-item>
             <el-button type="primary" @click="handleSearch">搜索</el-button>
             <el-button @click="handleReset">重置</el-button>
-            <el-button @click="handleImport">导入Excel</el-button>
+            <el-button type="success" @click="handleImport">导入Excel</el-button>
           </el-form-item>
           <el-form-item>
-            <el-button type="success" @click="handleAdd">新增</el-button>
+            <el-button type="primary" @click="handleAdd">新增</el-button>
             <!-- <el-button type="danger" :disabled="selectedRows.length === 0" @click="handleBatchDelete">批量删除</el-button> -->
-            <el-button @click="handleExport">导出Excel</el-button>
+            <el-button type="warning" @click="handleExport">导出Excel</el-button>
           </el-form-item>
         </el-form>
       </div>

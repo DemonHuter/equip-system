@@ -6,7 +6,7 @@ start "Backend Server" cmd /c "cd backend && mvn clean package && mvn spring-boo
 
 REM Wait for backend service to start
 echo Waiting for backend service to start...
-timeout /t 3 /nobreak >nul
+timeout /t 10 /nobreak >nul
 
 REM Start frontend service
 echo Starting frontend service...

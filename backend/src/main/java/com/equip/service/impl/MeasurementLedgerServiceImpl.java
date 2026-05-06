@@ -12,12 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
@@ -26,15 +27,9 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
     private MeasurementLedgerMapper ledgerMapper;
 
     private SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private SimpleDateFormat dateSdf = new SimpleDateFormat("yyyy-MM-dd");
 
-
-    /**
-     * 判断一个数字是否是Excel日期格式
-     * Excel日期是从1900年1月1日开始的天数
-     */
     private boolean isExcelDate(double value) {
-        // Excel日期范围：1900-01-01 到 9999-12-31
-        // 对应的Excel天数范围：1.0 到 2958465.0
         return value >= 1.0 && value <= 2958465.0;
     }
 
@@ -48,10 +43,9 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
         if (deviceNo != null && !deviceNo.isEmpty()) {
             wrapper.like("device_no", deviceNo);
         }
-        // 打印科室查询条件，以便调试
         System.out.println("科室查询条件: " + (department == null ? "null" : java.util.Arrays.toString(department)));
         if (department != null && department.length > 0) {
-            wrapper.in("department", department);
+            wrapper.in("department", (Object[]) department);
         }
         if (nextInspectionDate != null && !nextInspectionDate.isEmpty()) {
             wrapper.like("next_inspection_date", nextInspectionDate);
@@ -92,16 +86,13 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
     public void importExcel(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream();
              Workbook workbook = new XSSFWorkbook(inputStream)) {
-            // 初始化FormulaEvaluator
             FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
-            
-            
-            // 使用第一个工作表（Sheet1），因为它包含实际数据
+            DataFormatter dataFormatter = new DataFormatter();
+
             Sheet sheet = workbook.getSheetAt(0);
             List<MeasurementLedger> ledgers = new ArrayList<>();
             String now = sdf.format(new Date());
 
-            // 从第四行开始读取数据（索引为3），因为第三行是表头
             System.out.println("开始从第4行（索引3）读取数据...");
             for (int i = 3; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
@@ -109,32 +100,30 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
                     System.out.println("第 " + (i+1) + " 行为空，跳过");
                     continue;
                 }
-                
+
                 System.out.println("读取第 " + (i+1) + " 行数据");
-                
+
                 MeasurementLedger ledger = new MeasurementLedger();
-                ledger.setDeviceName(getCellValue(evaluator, row.getCell(0), "deviceName"));
-                ledger.setSpecModel(getCellValue(evaluator, row.getCell(1), "specModel"));
-                ledger.setDeviceNo(getCellValue(evaluator, row.getCell(2), "deviceNo"));
-                ledger.setInspectionUnit(getCellValue(evaluator, row.getCell(3), "inspectionUnit"));
-                ledger.setInspectionDate(getCellValue(evaluator, row.getCell(4), "inspectionDate"));
-                // 索引5是actual_implementation字段，已从系统中移除，跳过
-                ledger.setTestResult(getCellValue(evaluator, row.getCell(6), "testResult"));
-                ledger.setCertNo(getCellValue(evaluator, row.getCell(7), "certNo"));
-                ledger.setCycle(getCellValue(evaluator, row.getCell(8), "cycle"));
-                ledger.setNextInspectionDate(getCellValue(evaluator, row.getCell(9), "nextInspectionDate"));
-                ledger.setRemark(getCellValue(evaluator, row.getCell(10), "remark"));
-                ledger.setDepartment(getCellValue(evaluator, row.getCell(11), "department"));
-                ledger.setJudgmentStandard(getCellValue(evaluator, row.getCell(12), "judgmentStandard"));
+                ledger.setDeviceName(getCellValue(dataFormatter, evaluator, row.getCell(0), "deviceName"));
+                ledger.setSpecModel(getCellValue(dataFormatter, evaluator, row.getCell(1), "specModel"));
+                ledger.setDeviceNo(getCellValue(dataFormatter, evaluator, row.getCell(2), "deviceNo"));
+                ledger.setInspectionUnit(getCellValue(dataFormatter, evaluator, row.getCell(3), "inspectionUnit"));
+                ledger.setInspectionDate(getCellValue(dataFormatter, evaluator, row.getCell(4), "inspectionDate"));
+                ledger.setTestResult(getCellValue(dataFormatter, evaluator, row.getCell(6), "testResult"));
+                ledger.setCertNo(getCellValue(dataFormatter, evaluator, row.getCell(7), "certNo"));
+                ledger.setCycle(getCellValue(dataFormatter, evaluator, row.getCell(8), "cycle"));
+                ledger.setNextInspectionDate(getCellValue(dataFormatter, evaluator, row.getCell(9), "nextInspectionDate"));
+                ledger.setRemark(getCellValue(dataFormatter, evaluator, row.getCell(10), "remark"));
+                ledger.setDepartment(getCellValue(dataFormatter, evaluator, row.getCell(11), "department"));
+                ledger.setJudgmentStandard(getCellValue(dataFormatter, evaluator, row.getCell(12), "judgmentStandard"));
                 ledger.setCreateTime(now);
                 ledger.setUpdateTime(now);
                 ledgers.add(ledger);
-                
+
                 System.out.println("添加数据: 设备名称=" + ledger.getDeviceName() + ", 设备编号=" + ledger.getDeviceNo());
             }
 
             System.out.println("读取到 " + ledgers.size() + " 条数据");
-            // 批量插入数据
             if (!ledgers.isEmpty()) {
                 System.out.println("开始插入数据...");
                 for (MeasurementLedger ledger : ledgers) {
@@ -152,32 +141,45 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
     }
 
     @Override
+    public List<String> getDepartments() {
+        QueryWrapper<MeasurementLedger> wrapper = new QueryWrapper<>();
+        wrapper.select("distinct department")
+               .isNotNull("department")
+               .ne("department", "");
+        List<MeasurementLedger> list = ledgerMapper.selectList(wrapper);
+        Set<String> departments = new HashSet<>();
+        for (MeasurementLedger ledger : list) {
+            if (ledger.getDepartment() != null && !ledger.getDepartment().isEmpty()) {
+                departments.add(ledger.getDepartment());
+            }
+        }
+        return new ArrayList<>(departments);
+    }
+
+    @Override
     public byte[] exportExcel(List<MeasurementLedger> ledgers) {
         try {
-            // 读取模板文件
             ClassLoader classLoader = getClass().getClassLoader();
             InputStream templateStream = classLoader.getResourceAsStream("template/measurement_ledger_template.xlsx");
             if (templateStream == null) {
                 throw new RuntimeException("模板文件不存在");
             }
-            
+
             try (Workbook workbook = new XSSFWorkbook(templateStream)) {
                 Sheet sheet = workbook.getSheetAt(0);
-                
-                // 从第四行开始写入数据（索引为3）
+
                 int dataRowIndex = 3;
-                
-                // 遍历数据并写入Excel
+
                 for (MeasurementLedger ledger : ledgers) {
                     Row row = sheet.createRow(dataRowIndex++);
-                    
-                    // 根据模板的列顺序写入数据
+
                     int colIndex = 0;
                     row.createCell(colIndex++).setCellValue(ledger.getDeviceName());
                     row.createCell(colIndex++).setCellValue(ledger.getSpecModel());
                     row.createCell(colIndex++).setCellValue(ledger.getDeviceNo());
                     row.createCell(colIndex++).setCellValue(ledger.getInspectionUnit());
                     row.createCell(colIndex++).setCellValue(ledger.getInspectionDate());
+                    // row.createCell(colIndex++).setCellValue("");
                     row.createCell(colIndex++).setCellValue(ledger.getTestResult());
                     row.createCell(colIndex++).setCellValue(ledger.getCertNo());
                     row.createCell(colIndex++).setCellValue(ledger.getCycle());
@@ -186,86 +188,67 @@ public class MeasurementLedgerServiceImpl implements MeasurementLedgerService {
                     row.createCell(colIndex++).setCellValue(ledger.getDepartment());
                     row.createCell(colIndex++).setCellValue(ledger.getJudgmentStandard());
                 }
-                
-                // 将Workbook写入字节数组
-                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                workbook.write(outputStream);
-                return outputStream.toByteArray();
+
+                java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                workbook.write(out);
+                return out.toByteArray();
             }
         } catch (Exception e) {
-            throw new RuntimeException("导出Excel失败: " + e.getMessage(), e);
+            throw new RuntimeException("Excel导出失败: " + e.getMessage(), e);
         }
     }
 
-    @Override
-    public List<String> getDepartments() {
-        // 从数据库中获取所有科室，去重
-        QueryWrapper<MeasurementLedger> wrapper = new QueryWrapper<>();
-        wrapper.select("distinct department");
-        wrapper.isNotNull("department");
-        wrapper.ne("department", "");
-        List<MeasurementLedger> ledgers = ledgerMapper.selectList(wrapper);
-        List<String> departments = new ArrayList<>();
-        for (MeasurementLedger ledger : ledgers) {
-            departments.add(ledger.getDepartment());
+    private String getCellValue(DataFormatter dataFormatter, FormulaEvaluator evaluator, Cell cell, String fieldName) {
+        if (cell == null) {
+            return "";
         }
-        return departments;
-    }
 
-    private String getCellValue(FormulaEvaluator evaluator, Cell cell, String fieldName) {
-        if (cell == null) return "";
         CellType cellType = cell.getCellType();
+
         switch (cellType) {
             case STRING:
-                String cellValue = cell.getStringCellValue();
-                // 处理自定义日期格式：yyyy年m月d日
-                if (cellValue.matches("\\d{4}年\\d{1,2}月\\d{1,2}日")) {
-                    return cellValue.replace("年", "-").replace("月", "-").replace("日", "");
-                }
-                return cellValue;
+                return cell.getStringCellValue().trim();
             case NUMERIC:
-                // 只针对应检日期和下次检定日期两个字段进行Excel日期格式转换
-                if ((fieldName.equals("inspectionDate") || fieldName.equals("nextInspectionDate")) && 
-                    (DateUtil.isCellDateFormatted(cell) || isExcelDate(cell.getNumericCellValue()))) {
-                    // 日期格式转换为字符串年月日格式
-                    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-                    return dateFormat.format(cell.getDateCellValue());
-                } else {
-                    // 数字类型转换为字符串，避免科学计数法
-                    cell.setCellType(CellType.STRING);
-                    return cell.getStringCellValue();
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    return sdf.format(cell.getDateCellValue());
                 }
+                double numericValue = cell.getNumericCellValue();
+                if (isExcelDate(numericValue)) {
+                    return convertExcelDateToString(numericValue);
+                }
+                if (numericValue == Math.floor(numericValue)) {
+                    return String.valueOf((long) numericValue);
+                }
+                return String.valueOf(numericValue);
             case BOOLEAN:
                 return String.valueOf(cell.getBooleanCellValue());
             case FORMULA:
                 try {
-                    CellValue cellVal = evaluator.evaluate(cell);
-                    if (cellVal.getCellType() == CellType.NUMERIC) {
-                        // 只针对应检日期和下次检定日期两个字段进行Excel日期格式转换
-                        if ((fieldName.equals("inspectionDate") || fieldName.equals("nextInspectionDate")) && 
-                            (DateUtil.isCellDateFormatted(cell) || isExcelDate(cell.getNumericCellValue()))) {
-                            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-                            return dateFormat.format(cell.getDateCellValue());
-                        } else {
-                            cell.setCellType(CellType.STRING);
-                            return cell.getStringCellValue();
+                    String formulaValue = dataFormatter.formatCellValue(cell, evaluator);
+                    if (formulaValue != null && !formulaValue.isEmpty()) {
+                        try {
+                            double numericResult = Double.parseDouble(formulaValue);
+                            if (isExcelDate(numericResult)) {
+                                return convertExcelDateToString(numericResult);
+                            }
+                        } catch (NumberFormatException e) {
                         }
-                    } else if (cellVal.getCellType() == CellType.STRING) {
-                        String formulaValue = cellVal.getStringValue();
-                        // 处理自定义日期格式：yyyy年m月d日
-                        if (formulaValue.matches("\\d{4}年\\d{1,2}月\\d{1,2}日")) {
-                            return formulaValue.replace("年", "-").replace("月", "-").replace("日", "");
-                        }
-                        return formulaValue;
-                    } else {
-                        return String.valueOf(cellVal);
                     }
+                    return formulaValue;
                 } catch (Exception e) {
-                    return cell.getCellFormula();
+                    return "";
                 }
             default:
                 return "";
         }
     }
 
+    private String convertExcelDateToString(double excelDate) {
+        try {
+            Date date = DateUtil.getJavaDate(excelDate);
+            return dateSdf.format(date);
+        } catch (Exception e) {
+            return String.valueOf(excelDate);
+        }
+    }
 }
